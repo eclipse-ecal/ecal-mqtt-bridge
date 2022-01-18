@@ -1,0 +1,35 @@
+This project includes software developed by
+Continental Corporation (https://www.continental-automotive.com)
+
+Licensed under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License. You may obtain a copy of the License at:
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied. See the License for the
+specific language governing permissions and limitations
+under the License.
+
+
+This project has dependencies - list with dependency name and license follows.
+
+1. Used Licenses (overall)
+ 
+  - MIT License - https://opensource.org/licenses/MIT
+  - BSD-3-Clause
+
+
+2. Details
+ 
+2.1 yaml-cpp
+  - Copyright (c) 2008-2015 Jesse Beder
+  - URL: https://github.com/jbeder/yaml-cpp
+  - License: MIT License - https://github.com/jbeder/yaml-cpp/blob/master/LICENSE
+  
+2.2 stringutils.h
+  - Copyright (c) 2013-2016, Technische Universitaet Muenchen.
+  - BSD-3-Clause

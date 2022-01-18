@@ -1,0 +1,127 @@
+# This is a sample yaml file for the mqtt2ecal gateway
+
+# we will have a main dictionary --> name will be gateway
+
+# mandatory
+gateway:
+  # hide_secrets: default is true
+  hide_secrets: false
+  # mqtt_protocol_version : default is "v3.1.1"
+  mqtt_protocol_version : v3.1.1
+  # ecal process name: default is mqtt_ecal_bridge
+  ecal_process_name: test
+  # one group is the brokers group
+  # For each broker we will have one entry
+  # usually there is only one broker 
+  # mandatory
+  brokers:
+    # The key in the brokers dictionary is the internal name of the broker 
+    - mosquitto_broker_1:
+      # Ip-Adress or hostname --> mandatory
+      host: 127.0.0.1
+      # port is not mandatory --> default is 1883
+      port: 1883
+      # user is not mandatory --> default: ecal2mqtt
+      user: JohnDoe
+      # password is not mandatory --> default: empty
+      password: 123456
+      # ID is not mandatory --> default sth. alphanumerical --> if empty: randomize --> maybe not possible 
+      id: 3457234957238475
+      # Randomize ID --> default is false --> false means take the given ID, if exists, true --> randomnize in any case
+      randomize_id: false
+      # default_qos --> not mandatory, default: 0, other possible values: 1,2 
+      default_qos: 1
+      # keep_alive --> not mandatory, default 60
+      keep_alive: 5000
+      # default_retain_flag, default --> false
+      default_retain_flag: true
+      #bind_ip --> not mandatory, default: empty --> somehow this binds the connection to a certain ip 
+      bind_ip: 127.0.0.1
+      # ignore_error_first_connect --> default is false
+      ignore_error_first_connect: true
+      
+      # SSL stuff
+      # use_ssl --> not mandatory default false, if true do ssl and also error, if not all required ssl info is provided
+      use_ssl: false
+      # ca_file --> not mandatory, --> default empty, meaning: do not use ca-file at all
+      ca_file: /home/my_ca_files/ca-file.ca
+      # cert_file --> not mandatory, --> default empty, meaning: do not use cert-file at all
+      cert_file: /home/my_cert_files/cert-file.cert
+      # key_file --> not mandatory, --> default empty, meaning: do not use key_file at all
+      key_file: /home/my_key_files/key-file.key
+      # check_hostname_match: Not mandatory Hostname of ca file must match with the hostname of the broker instance. If you want to disable this check, set this to false, default is true
+      check_hostname_match: true
+      # ssl_verify_server: default false
+      ssl_verify_server: false
+      # tls_version --> not mandatory, default tlsv1.2, string that should match to tlsv1.2 or tlsv1.0 ...
+      tls_version: tlsv1.2
+      # tls_ciphers, default empty, ciphers that are used for encryption
+      tls_ciphers: ['345ert', '§$EGWERTZ', '§$%GW%', 'ERFQ§T%$"$%']
+      
+      # use psk instead of certifacates, default: false
+      ssl_use_psk: false
+      # psk_id --> mandatory if ssl_use_psk is true
+      psk_id: 345ijdfgioj3454235
+      # psk --> mandatory if ssl_use_psk is true
+      psk: SJ§§$%THJRIGHJIER&TZ$%IZ$%IJ$%IZJRTHSRTHWRI456345ziojp4w5hjw4igj4w5
+      # psk ciphers, default empty, ciphers that are used for encryption
+      psk_ciphers: ['345ert', '§$EGWERTZ', '§$%GW%', 'ERFQ§T%$"$%']
+    
+    # The key in the brokers dictionary is the internal name of the broker 
+    - THIS_IS_ANOTHER_MQTT_BROKER_WITH_SETTINGS_LIKE_mosquitto_broker_1:
+      #...
+      
+      
+  # all the messages that are transferred from mqtt to ecal are listed here    
+  mqtt2ecal:
+    # This is the name of this gateway entity --> will be used as a user info, can be anything
+    - mqtt_topic_x_to_ecal:
+      # broker_name --> mandatory and must match one of the brokers above
+      broker_name: mosquitto_broker_1
+      # mqtt_payload_name: mandatory --> this is the topic name of the payload coming from mqtt
+      mqtt_payload_name: mqttworld/coming_from_ecal/my_device_y/payload
+      # mqtt_ecal_type_name: optional --> default: empty, this is the topic name of the mqtt topic that contains the type information of the payload
+      mqtt_ecal_type_name: mqttworld/coming_from_ecal/my_device_y/ecal_type
+      # static_ecal_type_name: optional --> default: empty, if not empty the type information for the ecal protobuf message is not received via mqtt_ecal_type_name, but via this setting
+      static_ecal_type_name: proto:pb:People.Person
+      # mqtt_ecal_descriptor_name --> optional, this mqtt topic contains the descriptor string of the protobuf message that will be send via ecal
+      mqtt_ecal_type_descriptor: mqttworld/coming_from_ecal/my_device_y/descriptor
+      # ecal_out_topic_name: Mandatory --> name of the ecal_topic_name
+      ecal_out_topic_name: person_received
+      # qos --> optional, if not set, use the default one from the broker (maybe this is even not set there, then use the default from broker[which is 0])
+      qos: 2
+      # Here comes another instance for transmission from mqtt to ecal...
+    - mqtt_topic_y_to_ecal:
+      # ....
+  
+  # all the messages that are transferred from ecal to mqtt are listed here
+  ecal2mqtt:
+    # This is the name of this gateway entity --> Just relevant as a user info
+    - ecal_topic_person_to_mqtt:
+      # broker_name --> mandatory. Shall contain the name of the broker that shall be used from the list of brokers above
+      broker_name: mosquitto_broker_1
+      # ecal_topic_name --> mandatory, name of the ecal topic that shall be received and from which the payload will be shifted to mqtt
+      ecal_topic_name: person
+      # mqtt_out_payload_name --> mandatory, name of the mqtt topic, in which the paylaod will be transferred
+      mqtt_out_payload_name: mqttworld/coming_from_ecal/my_device_y/payload
+      # mqtt_out_type_name --> optional, if empty do not send via mqtt. if not empty topic name to which the ecal message type will be transferred
+      mqtt_out_type_name: mqttworld/coming_from_ecal/my_device_y/ecal_type
+      # mqtt_out_decriptor -->  optional, if empty do not send via mqtt. if not empty topic name to which the ecal protobuf descriptor will be transferred
+      mqtt_out_descriptor: mqttworld/coming_from_ecal/my_device_y/descriptor
+      # retain_flag --> optional, if not set, use the default one from the broker (maybe this is even not set there, then use the default from broker[which is false])
+      retain_flag: true
+      # qos --> optional, if not set, use the default one from the broker (maybe this is even not set there, then use the default from broker[which is 0])
+      qos: 2
+      
+      
+      
+    
+      
+      
+      
+      
+  
+  
+    
+      
+      
