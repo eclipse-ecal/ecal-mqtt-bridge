@@ -1,12 +1,12 @@
 
 
 
-# MQTT2eCAL
-A generic gateway for MQTT to / from eCAL
+# eCAL <-> MQTT Bridge
+A generic transparent bridge between eCAL and MQTT.
 
 
 ## Principle
-MQTT2eCAL provides a functionality to bridge between eCAL and MQTT in bidirectional. This fully configurable gateway is able to manage the message transmission from eCAL to MQTT and vice versa using a yaml configuration file. 
+ecal-mqtt-bridge provides a functionality to bidirectionally bridge between eCAL and MQTT. This fully configurable bridge is able to manage the message transmission from eCAL to MQTT and vice versa using a yaml configuration file. 
 
 There are 3 types of messages that can be routed:
 *  message that contains the payload that needs to be shifted
@@ -20,7 +20,7 @@ Due to the lack of thread support of the mosquitto library on Windows, we decide
 
 
 ## Build instructions for Linux
-* Install [eCAL](https://continental.github.io/ecal/getting_started/setup.html)
+* Install [eCAL](https://eclipse-ecal.github.io/ecal/getting_started/setup.html)
 * Add the `mosquitto-dev PPA`  to your sources list :
 ```
 sudo apt-add-repository ppa:mosquitto-dev/mosquitto-ppa 
