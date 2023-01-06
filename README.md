@@ -20,7 +20,7 @@ Due to the lack of thread support of the mosquitto library on Windows, we decide
 
 
 ## Build instructions for Linux
-* Install [eCAL](https://eclipse-ecal.github.io/ecal/getting_started/setup.html)
+* Install at least version 5.11.0 of [eCAL](https://eclipse-ecal.github.io/ecal/getting_started/setup.html)
 * Add the `mosquitto-dev PPA`  to your sources list :
 ```
 sudo apt-add-repository ppa:mosquitto-dev/mosquitto-ppa 

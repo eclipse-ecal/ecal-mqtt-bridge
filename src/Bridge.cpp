@@ -25,18 +25,18 @@
 
 Bridge::Bridge(int argc, char** argv,const Broker& broker, const std::vector<MqttTopic>& mqtt2ecal_topics, const std::vector<EcalTopic>& ecal2mqtt_topics, const GeneralSettings& general_settings, bool verbose)
 	: mosquittopp(broker.id.c_str(), true /* clean session */)
-	, is_initialized(false)
-	, is_connected_to_mqtt_broker(false)
-	, broker_settings(broker)
+	, general_settings(general_settings)
 	, mqtt2ecal_topics(mqtt2ecal_topics)
 	, ecal2mqtt_topics(ecal2mqtt_topics)
-	, general_settings(general_settings)
-	, verbose(verbose)
+	, broker_settings(broker)
+	, mqtt_desc_thread(&Bridge::descriptorUpdateLoop, this)
+	, mqtt_desc_thread_active(true)
+	, is_initialized(false)
+	, is_connected_to_mqtt_broker(false)
+	, loop_started(false)
 	, mqtt_rx_counter(0)
 	, ecal_rx_counter(0)
-	, mqtt_desc_thread_active(true)
-	, mqtt_desc_thread(&Bridge::descriptorUpdateLoop, this)
-	, loop_started(false)
+	, verbose(verbose)
 {
 	initialize(argc, argv);
 }
@@ -54,27 +54,43 @@ void Bridge::onPublisherRegistration(const char* sample_, int sample_size_)
 	eCAL::pb::Sample sample;
 	if (sample.ParseFromArray(sample_, sample_size_))
 	{
-	  // We have to check with a mutex if the Name of the published topic is on the list of interest
-	  auto topic_name = sample.topic().tname();
-	  EcalTopic current_topic;
-	  bool found = false;
-	  for (auto topic : ecal2mqtt_topics)
-	  {
-		  if (topic_name == topic.ecal_topic_name)
-		  {
-			  if (!topic.mqtt_out_descriptor.empty())
-			  {
-				  found = true;
-				  current_topic = topic;
-			  }
-		  }
-	  }
-	  if (found)
-	  {
-	    // This is what we have to secure with a mutex
-	    std::lock_guard<std::mutex> lock(mqtt_desc_mtx);
-	    mqtt_descriptor_topics[current_topic.mqtt_out_descriptor] = sample.topic().tdesc();
-	  }
+		// We have to check with a mutex if the Name of the published topic is on the list of interest
+		auto topic_name = sample.topic().tname();
+
+		EcalTopic current_descriptor_topic;
+		EcalTopic current_type_topic;
+
+		bool found_descriptor = false;
+		bool found_type       = false;
+
+		for (auto topic : ecal2mqtt_topics)
+		{
+			if (topic_name == topic.ecal_topic_name)
+			{
+				if (!topic.mqtt_out_descriptor.empty())
+ 				{
+					found_descriptor = true;
+					current_descriptor_topic = topic;
+				}
+				if (!topic.mqtt_out_type_name.empty())
+				{
+					found_type = true;
+					current_type_topic = topic;
+				}
+			}
+		}
+		if (found_descriptor)
+		{
+			// This is what we have to secure with a mutex
+			std::lock_guard<std::mutex> lock(mqtt_desc_mtx);
+			mqtt_descriptor_topics[current_descriptor_topic.mqtt_out_descriptor] = sample.topic().tdesc();
+		}
+		if (found_type)
+		{
+			// This is what we have to secure with a mutex
+			std::lock_guard<std::mutex> lock(mqtt_type_mtx);
+			mqtt_type_topics[current_type_topic.mqtt_out_type_name] = sample.topic().ttype();
+		}
 	}
 }
 
@@ -102,18 +118,14 @@ bool Bridge::initEcal(int argc, char** argv)
 	for (auto topic : mqtt2ecal_topics)
 	{
 		std::string topic_type = "";
-		std::string topic_desc = "";
 
-		if (topic.static_ecal_type_name.empty())
-		{
-			topic_type = topic.mqtt_ecal_type_name;
-		}
-		else
+		if (!topic.static_ecal_type_name.empty())
 		{
 			topic_type = topic.static_ecal_type_name;
 		}
+
 		printVerbose("Creating eCAL publisher : " + topic.ecal_out_topic_name + " (" + topic_type + ")");
-		ecal_publishers[topic.ecal_out_topic_name] = (new eCAL::CPublisher(topic.ecal_out_topic_name, topic_type, topic_desc));
+		ecal_publishers[topic.ecal_out_topic_name] = (new eCAL::CPublisher(topic.ecal_out_topic_name, topic_type, ""));
 	}
 
 	for (auto topic : ecal2mqtt_topics)
@@ -133,7 +145,7 @@ void Bridge::descriptorUpdateLoop()
 	bool found = false;
 	for (auto topic : ecal2mqtt_topics)
 	{
-		if (!topic.mqtt_out_descriptor.empty())
+		if (!topic.mqtt_out_descriptor.empty() || !topic.mqtt_out_type_name.empty())
 		{
 			found = true;
 		}
@@ -142,16 +154,34 @@ void Bridge::descriptorUpdateLoop()
 	{
 		while (mqtt_desc_thread_active == true)
 		{
-			// Iterate through 
+			// Iterate through
 			if (is_initialized && is_connected_to_mqtt_broker)
 			{
-				std::lock_guard<std::mutex> lock(mqtt_desc_mtx);
+				std::lock_guard<std::mutex> lock_desc(mqtt_desc_mtx);
+
+				// iterate through descriptors
 				for (auto const& mqtt_topic : mqtt_descriptor_topics)
 				{
 					// iterate through topics, find the corresponding one and publish it to mqtt
 					for (auto topic : ecal2mqtt_topics)
 					{
-						if (topic.mqtt_out_descriptor == mqtt_topic.first) 
+						if (topic.mqtt_out_descriptor == mqtt_topic.first)
+						{
+							publish(NULL, mqtt_topic.first.c_str(), static_cast<int>(mqtt_topic.second.size()), mqtt_topic.second.data(), topic.qos, topic.retain_flag);
+							std::this_thread::sleep_for(std::chrono::milliseconds(10));
+							break;
+						}
+					}
+				}
+
+				std::lock_guard<std::mutex> lock_type(mqtt_type_mtx);
+				// iterate through types
+				for (auto const& mqtt_topic : mqtt_type_topics)
+				{
+					// iterate through topics, find the corresponding one and publish it to mqtt
+					for (auto topic : ecal2mqtt_topics)
+					{
+						if (topic.mqtt_out_type_name == mqtt_topic.first)
 						{
 							publish(NULL, mqtt_topic.first.c_str(), static_cast<int>(mqtt_topic.second.size()), mqtt_topic.second.data(), topic.qos, topic.retain_flag);
 							std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -551,26 +581,40 @@ void Bridge::on_message(const struct mosquitto_message* message)
 	{
 		return;
 	}
-	// Check if the message that has arrived is a dscriptor message
-	// if so check if the descriptor hash is in the table 
+	// Check if the message that has arrived is a descriptor message or type name
+	// if so check if the descriptor hash or type name hash is in the table
 	MqttTopic current_topic;
-	bool found = false;
+
+	bool found_descriptor = false;
+	bool found_type       = false;
+	bool found_payload    = false;
+
 	for (auto topic : mqtt2ecal_topics)
 	{
 		if (topic.mqtt_ecal_type_descriptor == std::string(message->topic))
 		{
+			current_topic    = topic;
+			found_descriptor = true;
+		}
+		else if (topic.mqtt_ecal_type_name == std::string(message->topic))
+		{
 			current_topic = topic;
-			found = true;
+			found_type    = true;
+		}
+		else if(topic.mqtt_payload_name == std::string(message->topic))
+		{
+			current_topic  = topic;
+			found_payload  = true;
 		}
 	}
-	if (found)
+
+	if (found_descriptor)
 	{
 		std::string descriptor(static_cast<char*>(message->payload), message->payloadlen);
 		auto hash = hasher(descriptor);
 		auto current_topic_hash = from_mqtt_desc_hash.find(std::string(message->topic));
-		//ToDo: Eliminate duplicated code
-		if (current_topic_hash == from_mqtt_desc_hash.end() ||
-		   (current_topic_hash->second != hash))
+
+		if (current_topic_hash == from_mqtt_desc_hash.end() || current_topic_hash->second != hash)
 		{
 			from_mqtt_desc_hash[message->topic] = hash;
 			auto pub_it = ecal_publishers.find(current_topic.ecal_out_topic_name);
@@ -580,27 +624,29 @@ void Bridge::on_message(const struct mosquitto_message* message)
 			}
 		}
 	}
-	else
+	else if (found_type)
 	{
-		// Find the corresponding eCAL publisher
-		MqttTopic ecal_it;
-		bool found = false;
-		for (auto topic : mqtt2ecal_topics)
+		std::string topic_type(static_cast<char*>(message->payload), message->payloadlen);
+		auto hash = hasher(topic_type);
+		auto current_topic_hash = from_mqtt_type_hash.find(std::string(message->topic));
+
+		if (current_topic_hash == from_mqtt_type_hash.end() || current_topic_hash->second != hash)
 		{
-			if (topic.mqtt_payload_name == std::string(message->topic))
-			{
-				ecal_it = topic;
-				found = true;
-			}
-		}
-		if (found)
-		{
-			auto pub_it = ecal_publishers.find(ecal_it.ecal_out_topic_name);
+			from_mqtt_type_hash[message->topic] = hash;
+			auto pub_it = ecal_publishers.find(current_topic.ecal_out_topic_name);
 			if (pub_it != ecal_publishers.end())
 			{
-				mqtt_rx_counter++;
-				pub_it->second->Send(message->payload, message->payloadlen);
+				pub_it->second->SetTypeName(topic_type);
 			}
+		}
+	}
+	else if (found_payload)
+	{
+		auto pub_it = ecal_publishers.find(current_topic.ecal_out_topic_name);
+		if (pub_it != ecal_publishers.end())
+		{
+			mqtt_rx_counter++;
+			pub_it->second->Send(message->payload, message->payloadlen);
 		}
 	}
 }
@@ -641,6 +687,23 @@ void Bridge::on_connect(int rc)
 				else
 				{
 					printError("Failed to subscribe to mqtt topic \"" + topic.mqtt_ecal_type_descriptor + "\"", subscribe_err, MOSQ_STR_ERROR);
+					return;
+				}
+			}
+		}
+		// Connect the "type" mqtt subscriber
+		for (auto topic : mqtt2ecal_topics)
+		{
+			if (topic.mqtt_ecal_type_name.size() > 0)
+			{
+				int subscribe_err = subscribe(NULL, topic.mqtt_ecal_type_name.c_str(), topic.qos);
+				if (subscribe_err == MOSQ_ERR_SUCCESS)
+				{
+					printVerbose("Successfully subscribed MQTT topic: " + topic.mqtt_ecal_type_name);
+				}
+				else
+				{
+					printError("Failed to subscribe to mqtt topic \"" + topic.mqtt_ecal_type_name + "\"", subscribe_err, MOSQ_STR_ERROR);
 					return;
 				}
 			}

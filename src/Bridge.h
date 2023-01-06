@@ -95,9 +95,13 @@ private:
   const Broker                              broker_settings;
 
   std::map<std::string, size_t>             from_mqtt_desc_hash;
+  std::map<std::string, size_t>             from_mqtt_type_hash;
 
   std::mutex                                mqtt_desc_mtx;
+  std::mutex                                mqtt_type_mtx;
+
   std::map<std::string, std::string>        mqtt_descriptor_topics;
+  std::map<std::string, std::string>        mqtt_type_topics;
 
   std::thread                               mqtt_desc_thread;
   std::atomic<bool>                         mqtt_desc_thread_active;
